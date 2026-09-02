@@ -8,35 +8,24 @@ SPDX-License-Identifier: curl
 
     #include "hash.h"
 
-This is the internal module for doing hash tables. A hash table uses a hash
-function to compute an index. On each index there is a separate linked list of
-entries.
+This is the internal module for doing hash tables. A hash table computes an
+index from each key. On each index there is a separate linked list of entries.
+The normal functions use arbitrary byte strings as keys. A separate function
+family uses `curl_socket_t` keys without treating their representation as a
+byte string.
 
 Create a hash table. Add items. Retrieve items. Remove items. Destroy table.
 
 ## `Curl_hash_init`
 
 ~~~c
-void Curl_hash_init(struct Curl_hash *h,
-                    size_t slots,
-                    hash_function hfunc,
-                    comp_function comparator,
-                    Curl_hash_dtor dtor);
+void Curl_hash_init(struct Curl_hash *h, size_t slots);
 ~~~
 
 The call initializes a `struct Curl_hash`.
 
 - `slots` is the number of entries to create in the hash table. Larger is
   better (faster lookups) but also uses more memory.
-- `hfunc` is a function pointer to a function that returns a `size_t` value as
-  a checksum for an entry in this hash table. Ideally, it returns a unique
-  value for every entry ever added to the hash table, but hash collisions are
-  handled.
-- `comparator` is a function pointer to a function that compares two hash
-  table entries. It should return non-zero if the compared items are
-  identical.
-- `dtor` is a function pointer to a destructor called when an entry is removed
-  from the table
 
 ## `Curl_hash_add`
 
@@ -46,7 +35,9 @@ Curl_hash_add(struct Curl_hash *h, void *key, size_t key_len, void *p)
 ~~~
 
 This call adds an entry to the hash. `key` points to the hash key and
-`key_len` is the length of the hash key. `p` is a custom pointer.
+`key_len` is the length of the hash key. The key is copied and may contain any
+bytes. `p` is a custom pointer. This function does not destroy `p` when its
+entry is removed.
 
 If there already was a match in the hash, that data is replaced with this new
 entry.
@@ -64,8 +55,23 @@ void *Curl_hash_add2(struct Curl_hash *h, void *key, size_t key_len, void *p,
 ~~~
 
 This works like `Curl_hash_add` but has an extra argument: `dtor`, which is a
-destructor call for this specific entry. When this entry is removed, this
-function is called instead of the function stored for the whole hash table.
+destructor for this specific entry. It is called with the copied key, key
+length and `p` when this entry is replaced or removed. It may be NULL.
+
+## Socket-key operations
+
+~~~c
+void *Curl_hash_add_sock(struct Curl_hash *h, curl_socket_t key, void *p);
+void *Curl_hash_add2_sock(struct Curl_hash *h, curl_socket_t key, void *p,
+                          Curl_hash_elem_dtor dtor);
+int Curl_hash_delete_sock(struct Curl_hash *h, curl_socket_t key);
+void *Curl_hash_pick_sock(struct Curl_hash *h, curl_socket_t key);
+~~~
+
+These functions use the numeric socket value for hashing and comparison. This
+keeps sequential socket descriptors well distributed rather than hashing
+their in-memory byte representation. `CURL_SOCKET_BAD` is not a valid key. Use
+only one key-operation family for a given hash table.
 
 ## `Curl_hash_delete`
 

@@ -113,6 +113,19 @@ static void dnscache_entry_free(struct Curl_dns_entry *dns)
   curlx_free(dns);
 }
 
+/* @unittest 1305 */
+UNITTEST void dnscache_entry_dtor(void *key, size_t key_len, void *entry);
+UNITTEST void dnscache_entry_dtor(void *key, size_t key_len, void *entry)
+{
+  struct Curl_dns_entry *dns = (struct Curl_dns_entry *)entry;
+  (void)key;
+  (void)key_len;
+  DEBUGASSERT(dns && (dns->refcount > 0));
+  dns->refcount--;
+  if(dns->refcount == 0)
+    dnscache_entry_free(dns);
+}
+
 struct dnscache_prune_data {
   struct curltime now;
   timediff_t oldest_ms; /* oldest time in cache not pruned. */
@@ -623,7 +636,8 @@ static struct Curl_dns_entry *dnsc_add_https(struct Curl_easy *data,
 
   /* Store the resolved data in our DNS cache. */
   dnsc_id2key(&key, id);
-  dns2 = Curl_hash_add(&dnscache->entries, key.data, key.len, (void *)dns);
+  dns2 = Curl_hash_add2(&dnscache->entries, key.data, key.len, (void *)dns,
+                        dnscache_entry_dtor);
   if(!dns2) {
     dnscache_entry_free(dns);
     return NULL;
@@ -652,7 +666,8 @@ static struct Curl_dns_entry *dnsc_add_addr(struct Curl_easy *data,
     return NULL;
 
   /* Store the resolved data in our DNS cache. */
-  dns2 = Curl_hash_add(&dnscache->entries, key->data, key->len, (void *)dns);
+  dns2 = Curl_hash_add2(&dnscache->entries, key->data, key->len, (void *)dns,
+                        dnscache_entry_dtor);
   if(!dns2) {
     dnscache_entry_free(dns);
     return NULL;
@@ -682,7 +697,8 @@ static struct Curl_dns_entry *dnsc_add_peer_addr(
 
   /* Store the resolved data in our DNS cache. */
   dnsc_id2key(&key, id);
-  dns2 = Curl_hash_add(&dnscache->entries, key.data, key.len, (void *)dns);
+  dns2 = Curl_hash_add2(&dnscache->entries, key.data, key.len, (void *)dns,
+                        dnscache_entry_dtor);
   if(!dns2) {
     dnscache_entry_free(dns);
     return NULL;
@@ -712,7 +728,8 @@ CURLcode Curl_dnscache_add(struct Curl_easy *data,
 
   /* Store the resolved data in our DNS cache and up ref count */
   dnscache_lock(data, dnscache);
-  if(!Curl_hash_add(&dnscache->entries, key.data, key.len, (void *)entry)) {
+  if(!Curl_hash_add2(&dnscache->entries, key.data, key.len, (void *)entry,
+                     dnscache_entry_dtor)) {
     dnscache_unlock(data, dnscache);
     return CURLE_OUT_OF_MEMORY;
   }
@@ -793,22 +810,12 @@ void Curl_dns_entry_unlink(struct Curl_easy *data,
   }
 }
 
-static void dnscache_entry_dtor(void *entry)
-{
-  struct Curl_dns_entry *dns = (struct Curl_dns_entry *)entry;
-  DEBUGASSERT(dns && (dns->refcount > 0));
-  dns->refcount--;
-  if(dns->refcount == 0)
-    dnscache_entry_free(dns);
-}
-
 /*
  * Curl_dnscache_init() inits a new DNS cache.
  */
 void Curl_dnscache_init(struct Curl_dnscache *dns, size_t size)
 {
-  Curl_hash_init(&dns->entries, size, Curl_hash_str, curlx_str_key_compare,
-                 dnscache_entry_dtor);
+  Curl_hash_init(&dns->entries, size);
 }
 
 void Curl_dnscache_destroy(struct Curl_dnscache *dns)

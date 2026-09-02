@@ -196,17 +196,6 @@ static void mstate(struct Curl_easy *data, CURLMstate state
 #define multistate(x, y) mstate(x, y, __LINE__)
 #endif
 
-/* multi->proto_hash destructor. Should never be called as elements
- * MUST be added with their own destructor */
-static void ph_freeentry(void *p)
-{
-  (void)p;
-  /* Always FALSE. Cannot use a 0 assert here since compilers
-   * are not in agreement if they then want a NORETURN attribute or
-   * not. *sigh* */
-  DEBUGASSERT(!p);
-}
-
 /*
  * multi_addmsg()
  *
@@ -260,8 +249,7 @@ struct Curl_multi *Curl_multi_handle(uint32_t xfer_table_size,
   Curl_uint32_bset_init(&multi->dirty);
   Curl_uint32_bset_init(&multi->pending);
   Curl_uint32_bset_init(&multi->msgsent);
-  Curl_hash_init(&multi->proto_hash, 23,
-                 Curl_hash_str, curlx_str_key_compare, ph_freeentry);
+  Curl_hash_init(&multi->proto_hash, 23);
   Curl_llist_init(&multi->msglist, NULL);
 
   multi->multiplexing = TRUE;

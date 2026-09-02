@@ -111,7 +111,8 @@ static CURLcode test_unit1305(const char *arg)
     key_len = strlen(data_key);
 
     data_node->refcount = 1; /* hash holds the reference */
-    nodep = Curl_hash_add(&hp.entries, data_key, key_len + 1, data_node);
+    nodep = Curl_hash_add2(&hp.entries, data_key, key_len + 1, data_node,
+                           dnscache_entry_dtor);
     abort_unless(nodep, "insertion into hash failed");
     /* Freeing is done now by Curl_hash_destroy */
     data_node = NULL;

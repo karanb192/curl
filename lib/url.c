@@ -431,17 +431,6 @@ void Curl_init_userdefined(struct Curl_easy *data)
 #endif
 }
 
-/* easy->meta_hash destructor. Should never be called as elements
- * MUST be added with their own destructor */
-static void easy_meta_freeentry(void *p)
-{
-  (void)p;
-  /* Always FALSE. Cannot use a 0 assert here since compilers
-   * are not in agreement if they then want a NORETURN attribute or
-   * not. *sigh* */
-  DEBUGASSERT(!p);
-}
-
 /**
  * Curl_open()
  *
@@ -470,8 +459,7 @@ CURLcode Curl_open(struct Curl_easy **curl)
   data->master_mid = UINT32_MAX;
   data->progress.hide = TRUE;
 
-  Curl_hash_init(&data->meta_hash, 23,
-                 Curl_hash_str, curlx_str_key_compare, easy_meta_freeentry);
+  Curl_hash_init(&data->meta_hash, 23);
   DEBUGASSERT(STRING_LAST <= UINT8_MAX);
   Curl_u8_strset_init(&data->set.strings);
   curlx_dyn_init(&data->state.headerb, CURL_MAX_HTTP_HEADER);
@@ -1992,15 +1980,6 @@ static void url_conn_reuse_adjust(struct Curl_easy *data,
   Curl_peer_link(&conn->via_peer2, needle->via_peer2);
 }
 
-static void conn_meta_freeentry(void *p)
-{
-  (void)p;
-  /* Always FALSE. Cannot use a 0 assert here since compilers
-   * are not in agreement if they then want a NORETURN attribute or
-   * not. *sigh* */
-  DEBUGASSERT(!p);
-}
-
 static CURLcode url_create_needle(struct Curl_easy *data,
                                   struct connectdata **pneedle)
 {
@@ -2017,8 +1996,7 @@ static CURLcode url_create_needle(struct Curl_easy *data,
   }
 
   /* Do the unfailable inits first, before checks that may early return */
-  Curl_hash_init(&needle->meta_hash, 23,
-                 Curl_hash_str, curlx_str_key_compare, conn_meta_freeentry);
+  Curl_hash_init(&needle->meta_hash, 23);
 
   /*************************************************************
    * Determine `conn->origin` and populate `data->state.up` and

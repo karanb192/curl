@@ -56,25 +56,12 @@ struct mev_sh_entry {
                            callback at least once */
 };
 
-static size_t mev_sh_entry_hash(void *key, size_t key_length, size_t slots_num)
-{
-  curl_socket_t fd = *((curl_socket_t *)key);
-  (void)key_length;
-  return (fd % (curl_socket_t)slots_num);
-}
-
-static size_t mev_sh_entry_compare(void *k1, size_t k1_len,
-                                   void *k2, size_t k2_len)
-{
-  (void)k1_len;
-  (void)k2_len;
-  return (*((curl_socket_t *)k1)) == (*((curl_socket_t *)k2));
-}
-
 /* sockhash entry destructor callback */
-static void mev_sh_entry_dtor(void *freethis)
+static void mev_sh_entry_dtor(void *key, size_t key_len, void *freethis)
 {
   struct mev_sh_entry *entry = (struct mev_sh_entry *)freethis;
+  (void)key;
+  (void)key_len;
   Curl_uint32_spbset_destroy(&entry->xfers);
 #ifdef DEBUGBUILD
   entry->magic = 0;
@@ -88,7 +75,7 @@ static struct mev_sh_entry *mev_sh_entry_get(struct Curl_hash *sh,
 {
   if(s != CURL_SOCKET_BAD) {
     /* only look for proper sockets */
-    return Curl_hash_pick(sh, (char *)&s, sizeof(curl_socket_t));
+    return Curl_hash_pick_sock(sh, s);
   }
   return NULL;
 }
@@ -113,8 +100,8 @@ static struct mev_sh_entry *mev_sh_entry_add(struct Curl_hash *sh,
   Curl_uint32_spbset_init(&check->xfers);
 
   /* make/add new hash entry */
-  if(!Curl_hash_add(sh, (char *)&s, sizeof(curl_socket_t), check)) {
-    mev_sh_entry_dtor(check);
+  if(!Curl_hash_add2_sock(sh, s, check, mev_sh_entry_dtor)) {
+    mev_sh_entry_dtor(NULL, 0, check);
     return NULL; /* major failure */
   }
 #ifdef DEBUGBUILD
@@ -126,7 +113,7 @@ static struct mev_sh_entry *mev_sh_entry_add(struct Curl_hash *sh,
 /* delete the given socket entry from the hash */
 static void mev_sh_entry_kill(struct Curl_multi *multi, curl_socket_t s)
 {
-  Curl_hash_delete(&multi->ev.sh_entries, (char *)&s, sizeof(curl_socket_t));
+  Curl_hash_delete_sock(&multi->ev.sh_entries, s);
 }
 
 static size_t mev_sh_entry_user_count(struct mev_sh_entry *e)
@@ -637,8 +624,7 @@ void Curl_multi_ev_conn_done(struct Curl_multi *multi,
 
 void Curl_multi_ev_init(struct Curl_multi *multi, size_t hashsize)
 {
-  Curl_hash_init(&multi->ev.sh_entries, hashsize, mev_sh_entry_hash,
-                 mev_sh_entry_compare, mev_sh_entry_dtor);
+  Curl_hash_init(&multi->ev.sh_entries, hashsize);
 }
 
 void Curl_multi_ev_cleanup(struct Curl_multi *multi)

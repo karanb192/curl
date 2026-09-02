@@ -957,15 +957,6 @@ static CURLcode dupset(struct Curl_easy *dst, struct Curl_easy *src)
   return result;
 }
 
-static void dupeasy_meta_freeentry(void *p)
-{
-  (void)p;
-  /* Always FALSE. Cannot use a 0 assert here since compilers
-   * are not in agreement if they then want a NORETURN attribute or
-   * not. *sigh* */
-  DEBUGASSERT(!p);
-}
-
 /*
  * curl_easy_duphandle() is an external interface to allow duplication of a
  * given input easy handle. The returned handle will be a new working handle
@@ -991,9 +982,7 @@ CURL *curl_easy_duphandle(CURL *curl)
      */
     outcurl->set.buffer_size = data->set.buffer_size;
 
-    Curl_hash_init(&outcurl->meta_hash, 23,
-                   Curl_hash_str, curlx_str_key_compare,
-                   dupeasy_meta_freeentry);
+    Curl_hash_init(&outcurl->meta_hash, 23);
     curlx_dyn_init(&outcurl->state.headerb, CURL_MAX_HTTP_HEADER);
     Curl_bufref_init(&outcurl->state.url);
     Curl_bufref_init(&outcurl->state.referer);

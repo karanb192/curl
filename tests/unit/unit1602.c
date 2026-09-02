@@ -24,16 +24,17 @@
 #include "unitcheck.h"
 #include "hash.h"
 
-static void t1602_mydtor(void *p)
+static void t1602_mydtor(void *key, size_t key_len, void *p)
 {
   int *ptr = (int *)p;
+  (void)key;
+  (void)key_len;
   curlx_free(ptr);
 }
 
 static CURLcode t1602_setup(struct Curl_hash *hash)
 {
-  Curl_hash_init(hash, 7, Curl_hash_str,
-                 curlx_str_key_compare, t1602_mydtor);
+  Curl_hash_init(hash, 7);
   return CURLE_OK;
 }
 
@@ -59,7 +60,7 @@ static CURLcode test_unit1602(const char *arg)
   value = curlx_malloc(sizeof(int));
   abort_unless(value, "Out of memory");
   *value = 199;
-  nodep = Curl_hash_add(&hash, &key, klen, value);
+  nodep = Curl_hash_add2(&hash, &key, klen, value, t1602_mydtor);
   if(!nodep)
     curlx_free(value);
   abort_unless(nodep, "insertion into hash failed");
@@ -69,7 +70,7 @@ static CURLcode test_unit1602(const char *arg)
   value2 = curlx_malloc(sizeof(int));
   abort_unless(value2, "Out of memory");
   *value2 = 204;
-  nodep = Curl_hash_add(&hash, &key2, klen, value2);
+  nodep = Curl_hash_add2(&hash, &key2, klen, value2, t1602_mydtor);
   if(!nodep)
     curlx_free(value2);
   abort_unless(nodep, "insertion into hash failed");

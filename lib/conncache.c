@@ -105,8 +105,10 @@ static void cpool_bundle_remove(struct cpool_bundle *bundle,
   conn->bits.in_cpool = FALSE;
 }
 
-static void cpool_bundle_free_entry(void *freethis)
+static void cpool_bundle_free_entry(void *key, size_t key_len, void *freethis)
 {
+  (void)key;
+  (void)key_len;
   cpool_bundle_destroy((struct cpool_bundle *)freethis);
 }
 
@@ -114,8 +116,7 @@ void Curl_cpool_init(struct cpool *cpool,
                      struct Curl_share *share,
                      size_t size)
 {
-  Curl_hash_init(&cpool->dest2bundle, size, Curl_hash_str,
-                 curlx_str_key_compare, cpool_bundle_free_entry);
+  Curl_hash_init(&cpool->dest2bundle, size);
 
   cpool->share = share;
   cpool->initialized = TRUE;
@@ -302,8 +303,8 @@ static struct cpool_bundle *cpool_add_bundle(struct cpool *cpool,
   if(!bundle)
     return NULL;
 
-  if(!Curl_hash_add(&cpool->dest2bundle,
-                    bundle->dest, bundle->dest_len, bundle)) {
+  if(!Curl_hash_add2(&cpool->dest2bundle, bundle->dest, bundle->dest_len,
+                     bundle, cpool_bundle_free_entry)) {
     cpool_bundle_destroy(bundle);
     return NULL;
   }
